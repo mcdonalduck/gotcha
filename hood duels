@@ -1,0 +1,86 @@
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+	
+local Get = setmetatable({},{
+    __index = function(n, k)
+        return game:GetService(k)
+    end,
+})
+
+getgenv().Settings = {
+	Enabled = false,
+
+	__TargetPart = "HumanoidRootPart",
+	__SilentAimToggled = true,
+	__PredictionAmount = 6.9,
+}
+
+if getgenv().ScriptExecuted then 
+	return
+end
+
+getgenv().ScriptExecuted = true
+
+local RunService = Get.RunService
+local UserInputService = Get.UserInputService
+local Players = Get.Players
+
+local Player = Players.LocalPlayer
+local Character = Player.Character or Player.CharacterAdded:Wait()
+
+local Mouse = Player:GetMouse()
+	
+workspace.ChildAdded:Connect(function(Object : Instance?) 
+	if Object.ClassName == "Camera" then
+		Camera = Object
+	end
+end)
+
+task.wait(1)
+
+Character.Humanoid.Health = 0
+
+PlayerLoaded = function(TargetPlayer : Instance?) 
+	if TargetPlayer ~= Player
+	and TargetPlayer.Character
+	and TargetPlayer.Character:FindFirstChild("HumanoidRootPart")
+	and TargetPlayer.Character:FindFirstChild("Humanoid")
+	and TargetPlayer.Character.Humanoid.Health ~= 0 then
+		return true 
+	else
+		return false 
+	end
+end
+
+GetClosestPlayer = function()
+	local ClosestPlayer = nil
+	local ClosestDistance = math.huge
+
+	for i,v in next, Players:GetPlayers() do 
+		if PlayerLoaded(v) then 
+			local ScreenPosition, OnScreen = Camera:WorldToViewportPoint(v.Character.HumanoidRootPart.Position) 
+			local Distance = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(ScreenPosition.X, ScreenPosition.Y)).Magnitude
+
+			if OnScreen then
+				if Distance < ClosestDistance then  
+					ClosestPlayer = v
+					ClosestDistance = Distance    
+				end
+			end
+		end
+	end
+	return ClosestPlayer
+end
+
+SetPrediction = function()
+	return (GetClosestPlayer().Character.HumanoidRootPart.Velocity / getgenv().Settings.__PredictionAmount)
+end
+
+local OldIndex = nil   
+ OldIndex = hookmetamethod(game, "__index", newcclosure(function(Self, Index) 
+	if Self:IsA("Mouse") and Index == "Hit" or Index == "Target" and getgenv().Settings.__SilentAimToggled  then
+		return (Index == "Hit" and GetClosestPlayer().Character:FindFirstChild(getgenv().Settings.__TargetPart).CFrame + SetPrediction())
+	end
+	return OldIndex(Self, Index)
+end))
